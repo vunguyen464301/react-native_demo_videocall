@@ -1,0 +1,217 @@
+import React, { Component } from "react";
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  TextInput,
+  Modal,
+  TouchableOpacity,
+  TouchableHighlight
+} from "react-native";
+import Common from "../themes/styles/Common";
+import {
+  Ionicons,
+  FontAwesome,
+  Feather,
+  SimpleLineIcon,
+  MaterialIcons
+} from "react-native-vector-icons";
+import {
+  RTCPeerConnection,
+  RTCIceCandidate,
+  RTCSessionDescription,
+  RTCView,
+  MediaStream,
+  MediaStreamTrack,
+  mediaDevices,
+  registerGlobals
+} from 'react-native-webrtc';
+import io from "socket.io-client/dist/socket.io.js";
+
+import ConnectID from "../themes/styles/Tab/ConnectID";
+import Colors from "../themes/colors/Colors";
+import BackgroundHome from "../components/BackgroundHome";
+import InputID from "../components/InputID";
+import ModalCallingTo from "../components/ModalCallingTo";
+import ModalCallingFrom from "../components/ModalCallingFrom";
+import CallScreen from './CallScreen'
+import * as Permissions from "expo-permissions";
+import { Camera } from "expo-camera";
+
+// import socket from '../services/socket';
+export default class ConnectIDScreen extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      textInput: "summer-smoke-6684",
+      modalVisibleCallTo: false,
+      modalVisibleCallFrom: false,
+      hasCameraPermission: null,
+      type: Camera.Constants.Type.back,
+
+      clientId: "",
+      callWindow: "",
+      callModal: "",
+      callFrom: "",
+      localSrc: null,
+      peerSrc: null,
+
+      callFrom_ID: "",
+      showVideoCall:false
+    };
+    this.socket = io("http://192.168.0.114:5000", {
+      jsonp: false
+    });
+    this.socket
+      .on("init", ({ id: clientId }) => {
+        this.setState({ clientId });
+        console.log(clientId);
+      })
+      .on("request", ({ from: callFrom }) => {
+        this.setState({ callFrom_ID: callFrom });
+        // this.setState({ modalVisibleCallFrom: true });
+      })
+      .on("call", data => {
+        console.log("=================data");
+        console.log(data);
+      })
+      .on("end", data => {
+        // this.setState({ modalVisibleCallFrom: false });
+        // this.setState({ modalVisibleCallTo: false });
+      })
+      .emit("init");
+  }
+
+  async componentDidMount() {
+    const { status } = await Permissions.askAsync(Permissions.CAMERA);
+    this.setState({ hasCameraPermission: status === "granted" });
+  }
+
+
+
+//set onchange text input id to call
+  onHandleChange = text => {
+    this.setState({ textInput: text });
+  };
+
+
+  render() {
+    const { textInput, clientId } = this.state;
+    const { hasCameraPermission } = this.state;
+    if (hasCameraPermission === null) {
+      return <View />;
+    } else if (hasCameraPermission === false) {
+      return <Text>No access to camera</Text>;
+    } else {
+      return (
+        <View style={Common.flex1}>
+          <BackgroundHome />
+          <View
+            style={[
+              Common.viewOverride,
+              Common.viewFull,
+              Common.viewPaddingContainer,
+              Common.backgroundContainer,
+              { paddingTop: 100 }
+            ]}
+          >
+            <View style={Common.nRow}>
+              <View style={Common.nColumn}>
+                <Text style={ConnectID.text17B}>HI ,Your ID is : </Text>
+                <Text style={ConnectID.text17BU}>{clientId}</Text>
+              </View>
+              <Text style={ConnectID.text13}>Get started</Text>
+            </View>
+
+            <InputID
+              value={textInput}
+              onChangeText={this.onHandleChange}
+              placeholder={"Your friend ID"}
+            />
+
+            <View style={Common.nColumn}>
+
+              <TouchableOpacity
+                style={ConnectID.btnVideoCall}
+                onPress={() => {
+                  this.btn_videoCallTo();
+                }}
+              >
+                <Feather name={"video"} size={40} color={Colors.light} />
+              </TouchableOpacity>
+
+              {/* <TouchableOpacity
+                style={ConnectID.btnCall}
+                onPress={() => this.setModalVisibleCallFrom()}
+              >
+                <Ionicons name={"ios-call"} size={40} color={Colors.light} />
+              </TouchableOpacity> */}
+            </View>
+          </View>
+          {this.allModal()}
+        </View>
+      );
+    }
+  }
+}
+
+const Style = StyleSheet.create({});
+
+
+allModal = () => {
+  return (
+    <>
+      <ModalCallingTo
+        animationType={"fade"}
+        transparent={true}
+        visible={this.state.modalVisibleCallTo}
+        onPress={() => {
+          this.btn_endVideoCallTo();
+        }}
+      />
+      <ModalCallingFrom
+        animationType={"fade"}
+        transparent={true}
+        visible={this.state.modalVisibleCallFrom}
+        onPressCallStart={() => this.btn_startCallFrom()}
+        onPressCallEnd={() => {
+          this.btn_endVideoCallFrom();
+        }}
+      />
+    </>
+  );
+};
+
+setModalVisibleCallTo = () => {
+  this.setState(prevState => ({
+    modalVisibleCallTo: !prevState.modalVisibleCallTo
+  }));
+};
+setModalShowVideoCall=()=>{
+  this.setState(prevState=>({
+    showVideoCall:!prevState.showVideoCall
+  }))
+}
+//button start call
+btn_videoCallTo = () => {
+  this.socket.emit("request", { to: this.state.textInput });
+  this.setModalVisibleCallTo();
+};
+
+//button end call
+btn_endVideoCallTo = () => {
+  this.setModalVisibleCallTo();
+  this.socket.emit("end", { to: this.state.textInput });
+};
+btn_endVideoCallFrom = () => {
+  this.setModalVisibleCallFrom();
+  this.socket.emit("end", { to: this.state.callFrom_ID });
+};
+  //set modal
+  setModalVisibleCallFrom = () => {
+    this.setState(prevState => ({
+      modalVisibleCallFrom: !prevState.modalVisibleCallFrom
+    }));
+  };
+ 
